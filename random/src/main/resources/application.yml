@@ -1,0 +1,16 @@
+server:
+  port: 8000
+  servlet:
+    context-path: /api/v1/gw/random
+
+management:
+  server:
+    port: 8001
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+
+spring:
+  application:
+    name: Random-Service

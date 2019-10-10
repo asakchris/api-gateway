@@ -1,0 +1,22 @@
+version: '3'
+services:
+  token:
+    image: asakchris/api-gateway-token:1.0-SNAPSHOT
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+  cache:
+    image: asakchris/api-gateway-cache:1.0-SNAPSHOT
+    ports:
+      - "8002:8000"
+      - "8003:8001"
+  welcome:
+    image: asakchris/api-gateway-welcome:1.0-SNAPSHOT
+    ports:
+      - "8004:8000"
+      - "8005:8001"
+  random:
+    image: asakchris/api-gateway-random:1.0-SNAPSHOT
+    ports:
+      - "8006:8000"
+      - "8007:8001"
