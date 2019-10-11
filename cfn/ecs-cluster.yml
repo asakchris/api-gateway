@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: This stack create ECS Fargate Cluster
-
 Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster

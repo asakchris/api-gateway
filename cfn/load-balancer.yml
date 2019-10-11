@@ -16,13 +16,13 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: APP-ALB
-      Type: network
+      Type: application
       Scheme: internet-facing
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '60'
       Subnets: !Ref SubnetList
-      SecurityGroups: [!Ref 'LoadbalancerSecurityGroup']
+      SecurityGroups:
         - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'LoadBalancerSecurityGroup']]
 
   # This target group is used to setup the LB to just drop traffic initially, before any real service target groups have been added
@@ -39,19 +39,6 @@ Resources:
       Protocol: HTTP
       UnhealthyThresholdCount: 2
       VpcId: !Ref VpcId
-  AppLoadBalancerHttpsDummyTG:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: APP-DUMMY-TG-HTTPS
-      HealthCheckIntervalSeconds: 150
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTPS
-      HealthCheckTimeoutSeconds: 120
-      HealthyThresholdCount: 2
-      Port: 443
-      Protocol: HTTPS
-      UnhealthyThresholdCount: 2
-      VpcId: !Ref VpcId
 
   # Load balancer listener
   AppLoadBalancerListenerHttp:
@@ -61,17 +48,6 @@ Resources:
     Properties:
       DefaultActions:
       - TargetGroupArn: !Ref 'AppLoadBalancerHttpDummyTG'
-        Type: 'forward'
-      LoadBalancerArn: !Ref 'AppLoadBalancer'
-      Port: 80
-      Protocol: HTTP
-  AppLoadBalancerListenerHttps:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-    - AppLoadBalancer
-    Properties:
-      DefaultActions:
-      - TargetGroupArn: !Ref 'AppLoadBalancerHttpsDummyTG'
         Type: 'forward'
       LoadBalancerArn: !Ref 'AppLoadBalancer'
       Port: 80
@@ -104,17 +80,6 @@ Resources:
         Values: ['/api/v1/gw/token']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 1
-  TokenLoadBalancerRuleHttps:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-      - TargetGroupArn: !Ref 'TokenTargetGroup'
-        Type: 'forward'
-      Conditions:
-      - Field: path-pattern
-        Values: ['/api/v1/gw/token']
-      ListenerArn: !Ref AppLoadBalancerListenerHttps
-      Priority: 1
 
   # When cache container comes up, it will register in this target group
   CacheTargetGroup:
@@ -142,17 +107,6 @@ Resources:
       - Field: path-pattern
         Values: ['/api/v1/gw/cache']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
-      Priority: 2
-  CacheLoadBalancerRuleHttps:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-      - TargetGroupArn: !Ref 'CacheTargetGroup'
-        Type: 'forward'
-      Conditions:
-      - Field: path-pattern
-        Values: ['/api/v1/gw/cache']
-      ListenerArn: !Ref AppLoadBalancerListenerHttps
       Priority: 2
 
   # When welcome container comes up, it will register in this target group
@@ -182,17 +136,6 @@ Resources:
         Values: ['/api/v1/gw/welcome']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 3
-  WelcomeLoadBalancerRuleHttps:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-      - TargetGroupArn: !Ref 'WelcomeTargetGroup'
-        Type: 'forward'
-      Conditions:
-      - Field: path-pattern
-        Values: ['/api/v1/gw/welcome']
-      ListenerArn: !Ref AppLoadBalancerListenerHttps
-      Priority: 3
 
   # When random container comes up, it will register in this target group
   RandomTargetGroup:
@@ -220,17 +163,6 @@ Resources:
       - Field: path-pattern
         Values: ['/api/v1/gw/random']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
-      Priority: 4
-  RandomLoadBalancerRuleHttps:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-      - TargetGroupArn: !Ref 'RandomTargetGroup'
-        Type: 'forward'
-      Conditions:
-      - Field: path-pattern
-        Values: ['/api/v1/gw/random']
-      ListenerArn: !Ref AppLoadBalancerListenerHttps
       Priority: 4
 
 Outputs:
