@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates all required load balancers
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC in which Fargate tasks run
+  SubnetList:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select at least two subnets in given VPC to deploy LB
+  SecurityGroupStackName:
+    Type: String
+    Description: Name of the stack used to create Security Group
+Resources:
+  # Application load balancer for getting traffic to containers
+  AppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: APP-ALB
+      Type: network
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '60'
+      Subnets: !Ref SubnetList
+      SecurityGroups: [!Ref 'LoadbalancerSecurityGroup']
+        - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'LoadBalancerSecurityGroup']]
+
+  # This target group is used to setup the LB to just drop traffic initially, before any real service target groups have been added
+  AppLoadBalancerHttpDummyTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: APP-DUMMY-TG-HTTP
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VpcId
+  AppLoadBalancerHttpsDummyTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: APP-DUMMY-TG-HTTPS
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTPS
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 443
+      Protocol: HTTPS
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VpcId
+
+  # Load balancer listener
+  AppLoadBalancerListenerHttp:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+    - AppLoadBalancer
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'AppLoadBalancerHttpDummyTG'
+        Type: 'forward'
+      LoadBalancerArn: !Ref 'AppLoadBalancer'
+      Port: 80
+      Protocol: HTTP
+  AppLoadBalancerListenerHttps:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+    - AppLoadBalancer
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref 'AppLoadBalancerHttpsDummyTG'
+        Type: 'forward'
+      LoadBalancerArn: !Ref 'AppLoadBalancer'
+      Port: 80
+      Protocol: HTTP
+
+  # When token container comes up, it will register in this target group
+  TokenTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: TOKEN-TG
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: 8001
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  TokenLoadBalancerRuleHttp:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'TokenTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/token']
+      ListenerArn: !Ref AppLoadBalancerListenerHttp
+      Priority: 1
+  TokenLoadBalancerRuleHttps:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'TokenTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/token']
+      ListenerArn: !Ref AppLoadBalancerListenerHttps
+      Priority: 1
+
+  # When cache container comes up, it will register in this target group
+  CacheTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: CACHE-TG
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: 8001
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  CacheLoadBalancerRuleHttp:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'CacheTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/cache']
+      ListenerArn: !Ref AppLoadBalancerListenerHttp
+      Priority: 2
+  CacheLoadBalancerRuleHttps:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'CacheTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/cache']
+      ListenerArn: !Ref AppLoadBalancerListenerHttps
+      Priority: 2
+
+  # When welcome container comes up, it will register in this target group
+  WelcomeTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: WELCOME-TG
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: 8001
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  WelcomeLoadBalancerRuleHttp:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'WelcomeTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/welcome']
+      ListenerArn: !Ref AppLoadBalancerListenerHttp
+      Priority: 3
+  WelcomeLoadBalancerRuleHttps:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'WelcomeTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/welcome']
+      ListenerArn: !Ref AppLoadBalancerListenerHttps
+      Priority: 3
+
+  # When random container comes up, it will register in this target group
+  RandomTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: RANDOM-TG
+      HealthCheckIntervalSeconds: 150
+      HealthCheckPath: /actuator/health
+      HealthCheckPort: 8001
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  RandomLoadBalancerRuleHttp:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'RandomTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/random']
+      ListenerArn: !Ref AppLoadBalancerListenerHttp
+      Priority: 4
+  RandomLoadBalancerRuleHttps:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'RandomTargetGroup'
+        Type: 'forward'
+      Conditions:
+      - Field: path-pattern
+        Values: ['/api/v1/gw/random']
+      ListenerArn: !Ref AppLoadBalancerListenerHttps
+      Priority: 4
+
+Outputs:
+  TokenTargetGroup:
+    Description: Token target group arn
+    Value: !Ref TokenTargetGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenTargetGroupArn' ] ]
+  CacheTargetGroup:
+    Description: Cache target group arn
+    Value: !Ref CacheTargetGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'CacheTargetGroupArn' ] ]
+  WelcomeTargetGroup:
+    Description: Welcome target group arn
+    Value: !Ref WelcomeTargetGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'WelcomeTargetGroupArn' ] ]
+  RandomTargetGroup:
+    Description: Random target group arn
+    Value: !Ref RandomTargetGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'RandomTargetGroupArn' ] ]

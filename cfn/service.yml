@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates all ECS services for API GW
+Parameters:
+  PrivateSubnetList:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select at least two private subnets in given VPC where Fargate run tasks
+  SecurityGroupStackName:
+    Type: String
+    Description: Name of the stack used to create Security Group
+  LoadBalancerStackName:
+    Type: String
+    Description: Name of the stack used to create Load balancer
+  EcsClusterStackName:
+    Type: String
+    Description: Name of the stack used to create ECS Cluster
+  RoleStackName:
+    Type: String
+    Description: Name of the stack used to create IAM roles required for ECS
+  ImageVersion:
+    Type: String
+    Default: '1.0-SNAPSHOT'
+    Description: Version of the docker image
+Resources:
+  # Cloud watch log group to which token container send logs
+  TokenLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ECS/API-GW/token'
+      RetentionInDays: 7
+  # Metadata description of what token container to run and what resource requirements it has
+  TokenTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: TOKEN-TD
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskExecutionRoleArn']]
+      TaskRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskRoleArn']]
+      ContainerDefinitions:
+      - Name: TOKEN-CONTAINER
+        Cpu: 512
+        Memory: 1024
+        Image: !Sub 'asakchris/api-gateway-token:${ImageVersion}'
+        PortMappings:
+        - ContainerPort: 8000
+        - ContainerPort: 8001
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref TokenLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
+  # Service is a resource which allows to run multiple copies of a type of task, and gather up their logs and metrics,
+  # as well as monitor the number of running tasks and replace any that have crashed
+  TokenECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: TOKEN-SERVICE
+      Cluster:
+        Fn::ImportValue: !Join [':', [!Ref 'EcsClusterStackName', 'ClusterName']]
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: 2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+          - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'ContainerSecurityGroup']]
+          Subnets: !Ref PrivateSubnetList
+      TaskDefinition: !Ref TokenTaskDefinition
+      LoadBalancers:
+      - ContainerName: TOKEN-CONTAINER
+        ContainerPort: 8000
+        TargetGroupArn:
+          Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenTargetGroupArn']]
+
+  # Cache Service
+  CacheLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ECS/API-GW/cache'
+      RetentionInDays: 7
+  CacheTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: CACHE-TD
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskExecutionRoleArn']]
+      TaskRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskRoleArn']]
+      ContainerDefinitions:
+      - Name: CACHE-CONTAINER
+        Cpu: 512
+        Memory: 1024
+        Image: !Sub 'asakchris/api-gateway-cache:${ImageVersion}'
+        PortMappings:
+        - ContainerPort: 8000
+        - ContainerPort: 8001
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref CacheLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
+  CacheECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: CACHE-SERVICE
+      Cluster:
+        Fn::ImportValue: !Join [':', [!Ref 'EcsClusterStackName', 'ClusterName']]
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: 2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+          - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'ContainerSecurityGroup']]
+          Subnets: !Ref PrivateSubnetList
+      TaskDefinition: !Ref CacheTaskDefinition
+      LoadBalancers:
+      - ContainerName: CACHE-CONTAINER
+        ContainerPort: 8000
+        TargetGroupArn:
+          Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheTargetGroupArn']]
+
+  # Welcome Service
+  WelcomeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ECS/API-GW/welcome'
+      RetentionInDays: 7
+  WelcomeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: WELCOME-TD
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskExecutionRoleArn']]
+      TaskRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskRoleArn']]
+      ContainerDefinitions:
+      - Name: WELCOME-CONTAINER
+        Cpu: 512
+        Memory: 1024
+        Image: !Sub 'asakchris/api-gateway-welcome:${ImageVersion}'
+        PortMappings:
+        - ContainerPort: 8000
+        - ContainerPort: 8001
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref WelcomeLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
+  WelcomeECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: WELCOME-SERVICE
+      Cluster:
+        Fn::ImportValue: !Join [':', [!Ref 'EcsClusterStackName', 'ClusterName']]
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: 2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+          - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'ContainerSecurityGroup']]
+          Subnets: !Ref PrivateSubnetList
+      TaskDefinition: !Ref WelcomeTaskDefinition
+      LoadBalancers:
+      - ContainerName: WELCOME-CONTAINER
+        ContainerPort: 8000
+        TargetGroupArn:
+          Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'WelcomeTargetGroupArn']]
+
+  # Random Service
+  RandomLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ECS/API-GW/random'
+      RetentionInDays: 7
+  RandomTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: RANDOM-TD
+      Cpu: 512
+      Memory: 1024
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskExecutionRoleArn']]
+      TaskRoleArn:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'ECSTaskRoleArn']]
+      ContainerDefinitions:
+      - Name: RANDOM-CONTAINER
+        Cpu: 512
+        Memory: 1024
+        Image: !Sub 'asakchris/api-gateway-random:${ImageVersion}'
+        PortMappings:
+        - ContainerPort: 8000
+        - ContainerPort: 8001
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref RandomLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: ecs
+  RandomECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: RANDOM-SERVICE
+      Cluster:
+        Fn::ImportValue: !Join [':', [!Ref 'EcsClusterStackName', 'ClusterName']]
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: 2
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+          - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'ContainerSecurityGroup']]
+          Subnets: !Ref PrivateSubnetList
+      TaskDefinition: !Ref RandomTaskDefinition
+      LoadBalancers:
+      - ContainerName: RANDOM-CONTAINER
+        ContainerPort: 8000
+        TargetGroupArn:
+          Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'RandomTargetGroupArn']]

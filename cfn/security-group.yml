@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates all required security groups
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC in which Fargate tasks run
+Resources:
+  # Load balancer security group
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: LOAD-BALANCER-SG
+      GroupDescription: Access to the public facing load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # Allow access to ALB from anywhere on the internet
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '0.0.0.0/0'
+          Description: Allow HTTP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: '::/0'
+          Description: Allow HTTP
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: '0.0.0.0/0'
+          Description: Allow HTTPS
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: '::/0'
+          Description: Allow HTTPS
+
+  # Container security group
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: API-GW-CONTAINER-SG
+      GroupDescription: Access to the API GW container
+      VpcId: !Ref VpcId
+
+  # Allow traffic from load balancer into container
+  ContainerSecurityGroupIngressFromLB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from the public Load balancer
+      GroupId: !Ref 'ContainerSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8001
+      SourceSecurityGroupId: !Ref 'LoadBalancerSecurityGroup'
+
+Outputs:
+  LoadBalancerSecurityGroup:
+    Description: A security group used to allow traffic into load balancer
+    Value: !GetAtt 'LoadBalancerSecurityGroup.GroupId'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerSecurityGroup' ] ]
+  ContainerSecurityGroup:
+    Description: A security group used to allow traffic into container
+    Value: !GetAtt 'ContainerSecurityGroup.GroupId'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ContainerSecurityGroup' ] ]
