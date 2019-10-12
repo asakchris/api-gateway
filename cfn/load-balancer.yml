@@ -166,6 +166,21 @@ Resources:
       Priority: 4
 
 Outputs:
+  LoadBalancerDNS:
+    Description: Load Balancer DNS Name
+    Value: !GetAtt 'AppLoadBalancer.DNSName'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerDNS' ] ]
+  TokenUrl:
+    Description: Token URL
+    Value: !Sub 'http://${AppLoadBalancer.DNSName}/api/v1/gw/token/tokens'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenUrl' ] ]
+  CacheUrl:
+    Description: Cache URL
+    Value: !Sub 'http://${AppLoadBalancer.DNSName}/api/v1/gw/cache/tokens'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'CacheUrl' ] ]
   TokenTargetGroup:
     Description: Token target group arn
     Value: !Ref TokenTargetGroup

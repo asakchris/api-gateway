@@ -67,6 +67,14 @@ aws cloudformation create-stack --stack-name GW-SERVICE --template-body file://s
     --parameters ParameterKey=PrivateSubnetList,ParameterValue='subnet-03759a6aea1cffc8e,subnet-0239bfced473e911c'
     ParameterKey=SecurityGroupStackName,ParameterValue=GW-SG ParameterKey=LoadBalancerStackName,ParameterValue=GW-LB
     ParameterKey=EcsClusterStackName,ParameterValue=GW-ECS ParameterKey=RoleStackName,ParameterValue=GW-ROLE
+
+aws cloudformation create-stack --stack-name GW-S3 --template-body file://s3.yml
+
+aws cloudformation package --template-file lambda.yml --s3-bucket asakchris-api-gw-lambda
+    --output-template-file lambda-final.yml
+
+aws cloudformation deploy --template-file lambda-final.yml --stack-name GW-LAMBDA
+    --parameter-overrides RoleStackName=GW-ROLE
 ```
 
 ### Test

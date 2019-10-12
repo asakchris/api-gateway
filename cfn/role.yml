@@ -53,14 +53,41 @@ Resources:
               - 'ecs:DescribeTasks'
             Resource: '*'
 
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LAMBDA-ROLE
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaCloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Effect: 'Allow'
+                Resource: '*'
+
 Outputs:
   ECSTaskExecutionRole:
-    Description: The ARN of the ECS Task Execution Role
+    Description: The ARN of ECS Task Execution Role
     Value: !GetAtt 'ECSTaskExecutionRole.Arn'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ECSTaskExecutionRoleArn' ] ]
   ECSTaskRole:
-    Description: The ARN of the ECS Task Role
+    Description: The ARN of ECS Task Role
     Value: !GetAtt 'ECSTaskRole.Arn'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ECSTaskRoleArn' ] ]
+  LambdaRole:
+    Description: The ARN of Lambda Role
+    Value: !GetAtt 'LambdaRole.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LambdaRoleArn' ] ]

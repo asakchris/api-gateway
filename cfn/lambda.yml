@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates all Lambda functions
+Parameters:
+  RoleStackName:
+    Type: String
+    Description: Name of the stack used to create IAM roles required for ECS
+  LoadBalancerStackName:
+    Type: String
+    Description: Name of the stack used to create Load balancer
+  TokenHost:
+    Type: String
+    Default: 'tt.execute-api.us-east-1.amazonaws.com'
+    Description: Token host
+  ClientSecret:
+    Type: String
+    Default: 'T0FVVEhfRVhUX0dXOlBhc3NediE/REB6Q1RhKllKP3pDVCZ1eQ=='
+    Description: Client Secret
+Resources:
+  TokenGenFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: LAMBDA-TOKEN-GEN
+      Description: Lambda function to create token
+      Code: lambda/token_gen.py
+      Handler: token_gen.lambda_handler
+      Runtime: python3.6
+      Role:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'LambdaRoleArn']]
+      Environment:
+        Variables:
+          TOKEN_URL:
+            Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
+          TOKEN_HOST: !Ref TokenHost
+          CLIENT_SECRET: !Ref ClientSecret
+          CACHE_TOKEN_PATH:
+            Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
+  TokenValidatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: LAMBDA-VALIDATOR-GEN
+      Description: Lambda function to validate token
+      Code: lambda/token_validator.py
+      Handler: token_validator.lambda_handler
+      Runtime: python3.6
+      Role:
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'LambdaRoleArn']]
+      Environment:
+        Variables:
+          TOKEN_URL:
+            Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
+          TOKEN_HOST: !Ref TokenHost
+          CLIENT_SECRET: !Ref ClientSecret
+          CACHE_TOKEN_PATH:
+            Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
