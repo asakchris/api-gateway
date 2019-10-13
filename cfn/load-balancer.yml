@@ -77,7 +77,7 @@ Resources:
         Type: 'forward'
       Conditions:
       - Field: path-pattern
-        Values: ['/api/v1/gw/token']
+        Values: ['/api/v1/gw/token/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 1
 
@@ -105,7 +105,7 @@ Resources:
         Type: 'forward'
       Conditions:
       - Field: path-pattern
-        Values: ['/api/v1/gw/cache']
+        Values: ['/api/v1/gw/cache/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 2
 
@@ -133,7 +133,7 @@ Resources:
         Type: 'forward'
       Conditions:
       - Field: path-pattern
-        Values: ['/api/v1/gw/welcome']
+        Values: ['/api/v1/gw/welcome/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 3
 
@@ -161,7 +161,7 @@ Resources:
         Type: 'forward'
       Conditions:
       - Field: path-pattern
-        Values: ['/api/v1/gw/random']
+        Values: ['/api/v1/gw/random/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 4
 

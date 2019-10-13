@@ -1,8 +1,5 @@
 from botocore.vendored import requests
-import re
-import time
 import json
-import base64
 import os
 import uuid
 import traceback
@@ -15,7 +12,7 @@ def lambda_handler(event, context):
     validate(event)
 
     # Call OAM to generate token
-	request_body = event['body']
+    request_body = event['body']
     token_response = generate_token(request_body)
     print('token_response: ', token_response)
 
@@ -26,11 +23,12 @@ def lambda_handler(event, context):
     response_body = { "applicationToken": app_token }
     return {
         "statusCode": 200,
-        "body": response_body
+        'headers': { 'Content-Type': 'application/json' },
+        "body": json.dumps(response_body)
     }
 
 def validate(event):
-	http_method = event['httpMethod']
+    http_method = event['httpMethod']
     print('http_method: ', http_method)
     if http_method != 'POST':
         raise Exception('Invalid httpMethod')
@@ -56,12 +54,17 @@ def generate_token(request_body):
 
     try:
         response = requests.post(token_url, data = request_body, headers = request_headers)
+        print('response: ', response)
     except Exception:
         print('Exception while calling OAM endpoint to generate token: ', traceback.print_exc())
         raise Exception('Token can not be generated now')
 
-    j_response = json.loads(response.text)
-    return j_response
+    response_code = response.status_code
+    if 200 <= response_code <= 201:
+        return json.loads(response.text)
+    else:
+        print('Non successful response code while calling OAM endpoint to generate token: response_code: ', response_code, traceback.print_exc())
+        raise Exception('Token can not be generated now')
 
 def get_env_variable(var_name):
     try:
@@ -71,28 +74,25 @@ def get_env_variable(var_name):
         raise Exception('Invalid setup')
 
 def save_token(token_response):
-    ds_alb = get_stage_variable('ELB')
-    ds_token_path = get_env_variable('CACHE_TOKEN_PATH')
-    ds_token_url = 'http://' + ds_alb + ds_token_path
-    print('ds_alb: ', ds_alb, ', ds_token_path: ', ds_token_path, ', ds_token_url: ', ds_token_url)
+    ds_token_url = get_env_variable('CACHE_TOKEN_URL')
+    print('ds_token_url: ', ds_token_url)
 
     app_token = uuid.uuid4().hex
     print('app_token: ', app_token)
 
     request_body = { "applicationToken": app_token, "accessToken": token_response['access_token'], "refreshToken": token_response['refresh_token'] }
-    request_headers = { 'Content-type': 'application/json' }
+    request_headers = { 'Content-Type': 'application/json' }
 
     try:
-        requests.post(ds_token_url, data = request_body, headers = request_headers)
+        response = requests.post(ds_token_url, data = json.dumps(request_body), headers = request_headers)
+        print('response: ', response)
     except Exception:
         print('Exception while calling caching OAM token in application: ', traceback.print_exc())
         raise Exception('Application Token can not be generated now')
 
-    return app_token
-
-def get_stage_variable(var_name):
-    try:
-        return event['stageVariables'][var_name]
-    except KeyError as err:
-        print('Exception while reading stage variable: ', var_name, ': ', err)
-        raise Exception('Invalid setup')
+    response_code = response.status_code
+    if 200 <= response_code <= 201:
+        return app_token
+    else:
+        print('Non successful response code while calling token cache endpoint to cache token: response_code: ', response_code, traceback.print_exc())
+        raise Exception('Application Token can not be generated now')

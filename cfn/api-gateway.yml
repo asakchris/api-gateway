@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates API Gateway
+Parameters:
+  LambdaStackName:
+    Type: String
+    Description: Name of the stack used to create Lambda functions
+  LoadBalancerStackName:
+    Type: String
+    Description: Name of the stack used to create Load balancer
+Resources:
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: API-GW-LAMBDA-AUTH
+      Description: API Gateway with Lambda authorizer
+  Account:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+  ApiGatewayTokenResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ParentId: !GetAtt ApiGatewayApi.RootResourceId
+      PathPart: token
+  ApiGatewayTokenMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ResourceId: !Ref ApiGatewayTokenResource
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+          - LambdaArn:
+              Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenGenFunctionArn']]
+
+  TokenGenFunctionApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName:
+        Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenGenFunctionArn']]
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/*/*"
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayTokenMethod
+      - ApiGatewayProxyAnyMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      Description: API Gateway Deployment
+
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: 'DEV'
+      Description: API Gateway DEV stage
+      RestApiId: !Ref ApiGatewayApi
+      DeploymentId: !Ref ApiGatewayDeployment
+
+  RestApiAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: API-AUTHORIZER-ROLE
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'lambda:invokeFunction'
+                Effect: 'Allow'
+                Resource:
+                  Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
+  RestApiAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: APi-GW-AUTHORIZER
+      AuthorizerCredentials: !GetAtt RestApiAuthorizerRole.Arn
+      AuthorizerUri: !Sub
+        - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
+        - LambdaArn:
+            Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
+      AuthorizerResultTtlInSeconds: 300
+      Type: TOKEN
+      IdentitySource: 'method.request.header.Authorization'
+      RestApiId: !Ref ApiGatewayApi
+  TokenValidatorFunctionApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName:
+        Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/*/*"
+  ApiGatewayProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ParentId: !GetAtt ApiGatewayApi.RootResourceId
+      PathPart: '{proxy+}'
+  ApiGatewayProxyAnyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      ResourceId: !Ref ApiGatewayProxyResource
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref RestApiAuthorizer
+      HttpMethod: ANY
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        IntegrationHttpMethod: ANY
+        Type: HTTP_PROXY
+        Uri: !Sub
+          - 'http://${AlbDns}/{proxy}'
+          - AlbDns:
+              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'LoadBalancerDNS']]
+        TimeoutInMillis: 29000
+        CacheKeyParameters:
+          - 'method.request.path.proxy'
+        RequestParameters:
+          integration.request.path.proxy: 'method.request.path.proxy'
+          integration.request.header.authuid: 'context.authorizer.principalId'

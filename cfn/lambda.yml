@@ -32,8 +32,14 @@ Resources:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
           TOKEN_HOST: !Ref TokenHost
           CLIENT_SECRET: !Ref ClientSecret
-          CACHE_TOKEN_PATH:
+          CACHE_TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
+  TokenGenLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${TokenGenFunction}'
+      RetentionInDays: 7
+
   TokenValidatorFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -50,5 +56,22 @@ Resources:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
           TOKEN_HOST: !Ref TokenHost
           CLIENT_SECRET: !Ref ClientSecret
-          CACHE_TOKEN_PATH:
+          CACHE_TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
+  TokenValidatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${TokenValidatorFunction}'
+      RetentionInDays: 7
+
+Outputs:
+  TokenGenFunction:
+    Description: Token Gen Function Arn
+    Value: !GetAtt 'TokenGenFunction.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenGenFunctionArn' ] ]
+  TokenValidatorFunction:
+    Description: Token Validator Function Arn
+    Value: !GetAtt 'TokenValidatorFunction.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenValidatorFunctionArn' ] ]

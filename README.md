@@ -74,7 +74,11 @@ aws cloudformation package --template-file lambda.yml --s3-bucket asakchris-api-
     --output-template-file lambda-final.yml
 
 aws cloudformation deploy --template-file lambda-final.yml --stack-name GW-LAMBDA
-    --parameter-overrides RoleStackName=GW-ROLE
+    --parameter-overrides RoleStackName=GW-ROLE LoadBalancerStackName=GW-LB
+
+aws cloudformation deploy --template-file api-gateway.yml --stack-name GW-API
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+    --parameter-overrides LambdaStackName=GW-LAMBDA LoadBalancerStackName=GW-LB
 ```
 
 ### Test
