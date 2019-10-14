@@ -43,7 +43,7 @@ Resources:
   TokenValidatorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: LAMBDA-VALIDATOR-GEN
+      FunctionName: LAMBDA-TOKEN-VALIDATOR
       Description: Lambda function to validate token
       Code: lambda/token_validator.py
       Handler: token_validator.lambda_handler

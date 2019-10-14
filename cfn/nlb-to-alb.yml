@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This stack creates Lambda function which maps ALB TG to NLB
+Parameters:
+  LoadBalancerStackName:
+    Type: String
+    Description: 'Name of the stack used to create Load balancer'
+  S3StackName:
+    Type: String
+    Description: 'Name of the stack used to create S3 Buckets'
+  ALBListenerPort:
+    Type: String
+    Description: 'Enter the traffic listener port of your internal Application Load Balancer'
+  MAXDNSLookupPerInvocation:
+    Type: Number
+    Default: 50
+    Description: 'Please specify the max DNS lookup this function can perform per invocation'
+  InvocationBeforeDeregistration:
+    Type: Number
+    Default: 3
+    Description: 'Please specify how many invocations are needed before a IP is deregistered'
+  CWMetricFlagIPCount:
+    Type: String
+    Default: 'True'
+    AllowedValues: ['True', 'False']
+    Description: 'Please specify if you want the Lambda function to create a CloudWatch metric to track IP count of your internal Application Load Balancer'
+Mappings:
+  RegionMap:
+    us-east-1:
+      Bucket: 'exampleloadbalancer-us-east-1'
+      Key: 'blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB.zip'
+    us-west-1:
+      Bucket: 'exampleloadbalancer-us-west-1'
+      Key: 'blog-posts/static-ip-for-application-load-balancer/populate_NLB_TG_with_ALB.zip'
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LAMBDA-VALIDATOR-GEN
+        Description: Lambda function to validate token
+        Code:
+          S3Bucket: !FindInMap [ RegionMap, ${AWS::Region}, Bucket ]
+          S3Key: !FindInMap [ RegionMap, ${AWS::Region}, Key ]
+        Handler: populate_NLB_TG_with_ALB.lambda_handler
+        Runtime: python2.7
+        Timeout: 300
+        Role: !Ref
+        Environment:
+          Variables:
+            # Enter the DNS name of internal Application Load Balancer
+            ALB_DNS_NAME:
+              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'LoadBalancerDNS']]
+            # Enter the target group ARN which you want the Application Load Balancer to be registered to
+            NLB_TG_ARN:
+              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NLBTargetGroupArn']]
+            # Enter the S3 Bucket name that you want to store Application Load Balancer node IP addresses
+            S3_BUCKET:
+              Fn::ImportValue: !Join [':', [!Ref 'S3StackName', 'AlbIpBucket']]
+            MAX_LOOKUP_PER_INVOCATION: !Ref MAXDNSLookupPerInvocation
+            INVOCATIONS_BEFORE_DEREGISTRATION: !Ref InvocationBeforeDeregistration
+            CW_METRIC_FLAG_IP_COUNT: !Ref CWMetricFlagIPCount
+            ALB_LISTENER: !Ref ALBListenerPort
+  ScheduledRule:
+    Type: AWS::Events::Rule
+    DependsOn:
+      - LambdaFunction
+    Properties:
+      Description: 'Scheduled Rule'
+      ScheduleExpression: 'rate(1 minute)'
+      State: ENABLED
+      Targets:
+        -
+          Arn: !GetAtt LambdaFunction.Arn
+          Id: TargetFunctionV1
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: 'events.amazonaws.com'
+      Action: 'lambda:InvokeFunction'
+      SourceArn: !GetAtt ScheduledRule.Arn
+  LambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Effect: 'Allow'
+      Path: '/'
+      Policies:
+        - PolicyName: 'Lambda-ALBasTarget'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: 'LambdaLogging'
+                Effect: 'Allow'
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+              - Sid: 'S3'
+                  Effect: 'Allow'
+                  Action:
+                    - 's3:Get*'
+                    - 's3:PutObject'
+                    - 's3:CreateBucket'
+                    - 's3:ListBucket'
+                    - 's3:ListAllMyBuckets'
+                  Resource:
+                    - '*'
+              - Sid: 'ELB'
+                  Effect: 'Allow'
+                  Action:
+                    - 'elasticloadbalancing:Describe*'
+                    - 'elasticloadbalancing:RegisterTargets'
+                    - 'elasticloadbalancing:DeregisterTargets'
+                  Resource:
+                    - '*'
+              - Sid: 'CW'
+                  Effect: 'Allow'
+                  Action:
+                    - 'cloudwatch:putMetricData'
+                  Resource:
+                    - '*'

@@ -6,7 +6,7 @@ Parameters:
     Description: The VPC in which Fargate tasks run
   SubnetList:
     Type: List<AWS::EC2::Subnet::Id>
-    Description: Select at least two subnets in given VPC to deploy LB
+    Description: Select at least two subnets in given VPC to deploy ALB
   SecurityGroupStackName:
     Type: String
     Description: Name of the stack used to create Security Group
@@ -17,7 +17,7 @@ Resources:
     Properties:
       Name: APP-ALB
       Type: application
-      Scheme: internet-facing
+      Scheme: internal-facing
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '60'
@@ -164,13 +164,43 @@ Resources:
         Values: ['/api/v1/gw/random/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 4
-
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: APP-NLB
+      Scheme: internal-facing
+      Subnets: !Ref SubnetList
+      Type: network
+  NetworkLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: NLB-TG
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VpcId
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+  NetworkLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NetworkLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '80'
+      Protocol: TCP
 Outputs:
   LoadBalancerDNS:
     Description: Load Balancer DNS Name
     Value: !GetAtt 'AppLoadBalancer.DNSName'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerDNS' ] ]
+  NetworkLoadBalancerTargetGroup:
+    Description: Load Balancer DNS Name
+    Value: !GetAtt 'NetworkLoadBalancerTargetGroup.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'NLBTargetGroupArn' ] ]
   TokenUrl:
     Description: Token URL
     Value: !Sub 'http://${AppLoadBalancer.DNSName}/api/v1/gw/token/tokens'

@@ -78,6 +78,14 @@ Resources:
       RestApiId: !Ref ApiGatewayApi
       DeploymentId: !Ref ApiGatewayDeployment
 
+  VpcLink:
+    Type: AWS::ApiGateway::VpcLink
+    Properties:
+      Description: API GW VPC Link to NLB
+      Name: API-GW-VPC-LINK
+      TargetArns:
+        - Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NLBTargetGroupArn']]
+
   RestApiAuthorizerRole:
     Type: AWS::IAM::Role
     Properties:

@@ -5,9 +5,18 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: asakchris-api-gw-lambda
+  AlbIpBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: asakchris-api-gw-alb-ip
 Outputs:
   LambdaBucket:
     Description: Name of Lambda Bucket
     Value: !Ref 'LambdaBucket'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LambdaBucket' ] ]
+  AlbIpBucket:
+    Description: Name of ALB IP Bucket
+    Value: !Ref 'AlbIpBucket'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'AlbIpBucket' ] ]
