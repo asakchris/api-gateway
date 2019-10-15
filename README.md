@@ -48,39 +48,6 @@ docker-compose logs -f --tail="all" token
 docker-compose logs -f --tail="100" cache
 ```
 
-###### AWS
-```
-aws cloudformation create-stack --stack-name GW-SG --template-body file://security-group.yml
-    --parameters ParameterKey=VpcId,ParameterValue=vpc-0f407bc8f5f182a88
-
-aws cloudformation create-stack --stack-name GW-LB --template-body file://load-balancer.yml
-    --parameters ParameterKey=VpcId,ParameterValue=vpc-0f407bc8f5f182a88
-    ParameterKey=SubnetList,ParameterValue='subnet-07c3fe07c002037ad,subnet-091106e5ad4b9abc1'
-    ParameterKey=SecurityGroupStackName,ParameterValue=GW-SG
-
-aws cloudformation create-stack --stack-name GW-ROLE --template-body file://role.yml
-    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-
-aws cloudformation create-stack --stack-name GW-ECS --template-body file://ecs-cluster.yml
-
-aws cloudformation create-stack --stack-name GW-SERVICE --template-body file://service.yml
-    --parameters ParameterKey=PrivateSubnetList,ParameterValue='subnet-03759a6aea1cffc8e,subnet-0239bfced473e911c'
-    ParameterKey=SecurityGroupStackName,ParameterValue=GW-SG ParameterKey=LoadBalancerStackName,ParameterValue=GW-LB
-    ParameterKey=EcsClusterStackName,ParameterValue=GW-ECS ParameterKey=RoleStackName,ParameterValue=GW-ROLE
-
-aws cloudformation create-stack --stack-name GW-S3 --template-body file://s3.yml
-
-aws cloudformation package --template-file lambda.yml --s3-bucket asakchris-api-gw-lambda
-    --output-template-file lambda-final.yml
-
-aws cloudformation deploy --template-file lambda-final.yml --stack-name GW-LAMBDA
-    --parameter-overrides RoleStackName=GW-ROLE LoadBalancerStackName=GW-LB
-
-aws cloudformation deploy --template-file api-gateway.yml --stack-name GW-API
-    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-    --parameter-overrides LambdaStackName=GW-LAMBDA LoadBalancerStackName=GW-LB
-```
-
 ### Test
 ###### Local
 Token Service

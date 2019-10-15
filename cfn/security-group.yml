@@ -13,7 +13,6 @@ Resources:
       GroupDescription: Access to the public facing load balancer
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        # Allow access to ALB from anywhere on the internet
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
@@ -24,16 +23,6 @@ Resources:
           ToPort: 80
           CidrIpv6: '::/0'
           Description: Allow HTTP
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: '0.0.0.0/0'
-          Description: Allow HTTPS
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIpv6: '::/0'
-          Description: Allow HTTPS
 
   # Container security group
   ContainerSecurityGroup:

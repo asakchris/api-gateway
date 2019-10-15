@@ -84,7 +84,7 @@ Resources:
       Description: API GW VPC Link to NLB
       Name: API-GW-VPC-LINK
       TargetArns:
-        - Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NLBTargetGroupArn']]
+        - Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NetworkLoadBalancerARN']]
 
   RestApiAuthorizerRole:
     Type: AWS::IAM::Role
@@ -148,10 +148,12 @@ Resources:
       Integration:
         IntegrationHttpMethod: ANY
         Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Sub '${VpcLink}'
         Uri: !Sub
-          - 'http://${AlbDns}/{proxy}'
-          - AlbDns:
-              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'LoadBalancerDNS']]
+          - 'http://${NlbDns}/{proxy}'
+          - NlbDns:
+              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NetworkLoadBalancerDNS']]
         TimeoutInMillis: 29000
         CacheKeyParameters:
           - 'method.request.path.proxy'

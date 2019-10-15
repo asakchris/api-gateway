@@ -17,7 +17,7 @@ Resources:
     Properties:
       Name: APP-ALB
       Type: application
-      Scheme: internal-facing
+      Scheme: internal
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '60'
@@ -164,11 +164,12 @@ Resources:
         Values: ['/api/v1/gw/random/*']
       ListenerArn: !Ref AppLoadBalancerListenerHttp
       Priority: 4
+
   NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: APP-NLB
-      Scheme: internal-facing
+      Scheme: internal
       Subnets: !Ref SubnetList
       Type: network
   NetworkLoadBalancerTargetGroup:
@@ -177,6 +178,7 @@ Resources:
       Name: NLB-TG
       Port: 80
       Protocol: TCP
+      TargetType: ip
       VpcId: !Ref VpcId
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
@@ -192,13 +194,23 @@ Resources:
       Protocol: TCP
 Outputs:
   LoadBalancerDNS:
-    Description: Load Balancer DNS Name
+    Description: Application Load Balancer DNS Name
     Value: !GetAtt 'AppLoadBalancer.DNSName'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LoadBalancerDNS' ] ]
+  NetworkLoadBalancerDNS:
+    Description: Network Load Balancer DNS Name
+    Value: !GetAtt 'NetworkLoadBalancer.DNSName'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'NetworkLoadBalancerDNS' ] ]
+  NetworkLoadBalancerARN:
+    Description: Network Load Balancer ARN
+    Value: !Ref 'NetworkLoadBalancer'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'NetworkLoadBalancerARN' ] ]
   NetworkLoadBalancerTargetGroup:
     Description: Load Balancer DNS Name
-    Value: !GetAtt 'NetworkLoadBalancerTargetGroup.Arn'
+    Value: !Ref 'NetworkLoadBalancerTargetGroup'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'NLBTargetGroupArn' ] ]
   TokenUrl:
