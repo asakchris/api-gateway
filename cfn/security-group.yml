@@ -42,7 +42,6 @@ Resources:
       FromPort: 8000
       ToPort: 8001
       SourceSecurityGroupId: !Ref 'LoadBalancerSecurityGroup'
-
 Outputs:
   LoadBalancerSecurityGroup:
     Description: A security group used to allow traffic into load balancer

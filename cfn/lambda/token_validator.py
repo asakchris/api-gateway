@@ -2,38 +2,44 @@ from botocore.vendored import requests
 import json
 import base64
 import os
-import traceback
+import sys
 
 print ("Loading token validator")
 
 def lambda_handler(event, context):
     print('event: ', event)
+    try:
+        # Validate request
+        validate(event)
 
-    # Validate request
-    validate(event)
+        # Get OAM token from cache
+        application_token = event['authorizationToken']
+        access_token = get_token_from_cache(application_token)
 
-    # Get OAM token from cache
-    application_token = event['authorizationToken']
-    access_token = get_token_from_cache(application_token)
+        # Call OAM to validate token
+        principal_id = validate_token(access_token)
+        print('principal_id: ', principal_id)
 
-    # Call OAM to validate token
-    principalId = validate_token(access_token)
-    print('principalId: ', principalId)
-
-    # Generate policy and return
-    idmHeader = { 'uid': principalId }
-    res_policy = generate_policy(principalId, idmHeader, 'Allow', '*')
-    return res_policy
+        # Generate policy and return
+        idm_header = { 'uid': principal_id }
+        res_policy = generate_policy(principal_id, idm_header, 'Allow', '*')
+        return res_policy
+    except TokenException as ex:
+        print ('TokenException: ', ex)
+        raise Exception('Unauthorized')
+    except:
+        print('Unexpected error: ', sys.exc_info()[0])
+        raise
 
 def validate(event):
     if 'authorizationToken' in event:
         application_token = event['authorizationToken']
-        print('application_token: ', application_token)
         if not application_token:
-            raise Exception('Invalid token')
+            print('application_token: ', application_token)
+            raise TokenException('Token header is blank', 'Unauthorized')
     else:
         print('Token header is missing')
-        raise Exception('Invalid token')
+        raise TokenException('Token header is missing', 'Unauthorized')
 
 def get_token_from_cache(application_token):
     ds_token_url = get_env_variable('CACHE_TOKEN_URL')
@@ -41,34 +47,27 @@ def get_token_from_cache(application_token):
 
     request_param = { "applicationToken": application_token }
 
-    try:
-        response = requests.get(ds_token_url, params = request_param)
-        response_code = response.status_code
+    response = requests.get(ds_token_url, params = request_param)
+    response_code = response.status_code
 
-        if response_code == 200:
-            j_response = json.loads(response.text)
-            print('j_response: ', j_response)
-            access_token = j_response['accessToken']
-            return access_token
-        if response_code == 404:
-            print('Token not found in cache: ', application_token)
-            raise Exception('Invalid token')
-        elif 500 <= response_code <= 599:
-            print('Response code 5** while getting token from cache: ', application_token)
-            raise Exception('Internal error')
-        else:
-            print('Invalid response status code while getting token from cache: ', application_token, ': code: ', response_code)
-            raise Exception('Internal error')
-    except Exception:
-        print('Exception while getting token from cache: ', traceback.print_exc())
-        raise Exception('Internal error')
+    if response_code == 200:
+        j_response = json.loads(response.text)
+        print('j_response: ', j_response)
+        access_token = j_response['accessToken']
+        return access_token
+    elif 400 <= response_code <= 499:
+        print('Token not found in cache: ', application_token)
+        raise TokenException('Token not found in cache', 'Invalid token')
+    else:
+        print('Non successful response code while getting token from cache: ', application_token, ', response_code: ', response_code)
+        raise TokenException('Non successful response code while getting token from cache', 'Internal error')
 
 def get_stage_variable(var_name):
     try:
         return event['stageVariables'][var_name]
     except KeyError as err:
         print('Exception while reading stage variable: ', var_name, ': ', err)
-        raise Exception('Invalid setup')
+        raise err
 
 def validate_token(access_token):
     token_url = get_env_variable('TOKEN_URL')
@@ -78,69 +77,66 @@ def validate_token(access_token):
 
     authz = 'Basic ' + client_secret
     request_headers = { 'Content-type': 'application/x-www-form-urlencoded', 'Authorization': authz, 'Host': token_host }
-
     request_data = 'oracle_token_action=validate&grant_type=oracle-idm:/oauth/grant-type/resource-access-token/jwt&oracle_token_attrs_retrieval=exp prn exp firstname lastname spAppGroup isMemberOf iat oracle.oauth.client_origin_id&assertion=' + access_token
+    response = requests.post(token_url, data = request_data, headers = request_headers)
+    print('response: ', response)
+    response_code = response.status_code
 
-    try:
-        response = requests.post(token_url, data = request_data, headers = request_headers)
-        print('response: ', response)
-        response_code = response.status_code
+    if 200 <= response_code <= 201:
+        j_response = json.loads(response.text)
+        print('j_response: ', j_response)
 
-        if 200 <= response_code <= 201:
-            j_response = json.loads(response.text)
-            print('j_response: ', j_response)
-
-            if 'successful' in j_response:
-                if(check_client_id_parity(authz, j_response)):
-                    principalId = j_response['oracle_token_attrs_retrieval']['prn']
-                    return principalId
-                else:
-                    print("Token issued with another client_id")
-                    raise Exception('Unauthorized')
+        if 'successful' in j_response:
+            if check_client_id_parity(authz, j_response):
+                principal_id = j_response['oracle_token_attrs_retrieval']['prn']
+                return principal_id
             else:
-                print("Invalid Token or Client Key")
-                raise Exception('Unauthorized')
-        if response_code == 401:
-            print('Unauthorized response code while validating token: ', access_token)
-            raise Exception('Unauthorized')
-        elif 500 <= response_code <= 599:
-            print('Response code 5** while validating token: ', access_token)
-            raise Exception('Internal error')
+                print("Token issued with another client_id")
+                raise TokenException('Token issued with another client_id', 'Unauthorized')
         else:
-            print('Invalid response status code while validating token: ', access_token, ': code: ', response_code)
-            raise Exception('Internal error')
-    except Exception:
-        print('Exception while calling OAM endpoint to validate token: ', traceback.print_exc())
-        raise Exception('Internal error')
+            print("Invalid Token or Client Key")
+            raise TokenException('Invalid Token or Client Key', 'Unauthorized')
+    elif 400 <= response_code <= 499:
+        print('4** response code while validating token: ', access_token, ', response_code: ', response_code)
+        raise TokenException('4** response code while validating token', 'Unauthorized')
+    else:
+        print('Non successful response code while validating token: ', access_token, ', response_code: ', response_code)
+        raise TokenException('Non successful response code while validating token', 'Internal error')
 
 def get_env_variable(var_name):
     try:
         return os.environ[var_name]
     except KeyError as err:
         print('Exception while reading env variable: ', var_name, ': ', err)
-        raise Exception('Invalid setup')
+        raise err
 
 def check_client_id_parity(authz, j_response):
-    orgCid = j_response['oracle_token_attrs_retrieval']['oracle.oauth.client_origin_id']
-    reqCid = str(base64.standard_b64decode(authz[6:]), 'utf-8').split(':')[0] # trimming 'Basic '' spliting : getting only first part
-    return (orgCid.lower() == reqCid.lower())
+    org_cid = j_response['oracle_token_attrs_retrieval']['oracle.oauth.client_origin_id']
+    req_cid = str(base64.standard_b64decode(authz[6:]), 'utf-8').split(':')[0] # trimming 'Basic '' spliting : getting only first part
+    return org_cid.lower() == req_cid.lower()
 
-def generate_policy(principalId, idmHeader, effect, methodArn):
-    policyDocument = {
-        'principalId': principalId,
+def generate_policy(principal_id, idm_header, effect, method_arn):
+    policy_document = {
+        'principalId': principal_id,
         'policyDocument': {
             'Version': '2012-10-17',
             'Statement': [
                 {
                     'Action': 'execute-api:Invoke',
                     'Effect': effect,
-                    'Resource': methodArn
+                    'Resource': method_arn
                 }
             ]
         },
         'context': {
-            'uid': principalId,
-            'idm_header': json.dumps(idmHeader)
+            'uid': principal_id,
+            'idm_header': json.dumps(idm_header)
         }
     }
-    return policyDocument
+    return policy_document
+
+class TokenException(Exception):
+    """Basic exception for errors raised during token validation"""
+    def __init__(self, message, status_message):
+        super().__init__(message)
+        self.status_message = status_message

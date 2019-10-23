@@ -8,6 +8,7 @@ Parameters:
     Type: String
     Description: Name of the stack used to create Load balancer
 Resources:
+  # Role to push API Gateway logs to Cloud Watch
   CloudWatchRole:
     Type: AWS::IAM::Role
     Properties:
@@ -22,6 +23,7 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  # Create API Gateway
   ApiGatewayApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -31,12 +33,14 @@ Resources:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+  # Create token resource
   ApiGatewayTokenResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref ApiGatewayApi
       ParentId: !GetAtt ApiGatewayApi.RootResourceId
       PathPart: token
+  # Add post method to token resource
   ApiGatewayTokenMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -51,7 +55,7 @@ Resources:
           - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
           - LambdaArn:
               Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenGenFunctionArn']]
-
+  # Give API Gateway permission to invoke Token Gen Lambda function
   TokenGenFunctionApiGatewayInvoke:
     Type: AWS::Lambda::Permission
     Properties:
@@ -61,31 +65,7 @@ Resources:
       Principal: 'apigateway.amazonaws.com'
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/*/*"
 
-  ApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - ApiGatewayTokenMethod
-      - ApiGatewayProxyAnyMethod
-    Properties:
-      RestApiId: !Ref ApiGatewayApi
-      Description: API Gateway Deployment
-
-  ApiGatewayStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      StageName: 'DEV'
-      Description: API Gateway DEV stage
-      RestApiId: !Ref ApiGatewayApi
-      DeploymentId: !Ref ApiGatewayDeployment
-
-  VpcLink:
-    Type: AWS::ApiGateway::VpcLink
-    Properties:
-      Description: API GW VPC Link to NLB
-      Name: API-GW-VPC-LINK
-      TargetArns:
-        - Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NetworkLoadBalancerARN']]
-
+  # Create role for Authorizer
   RestApiAuthorizerRole:
     Type: AWS::IAM::Role
     Properties:
@@ -108,6 +88,7 @@ Resources:
                 Effect: 'Allow'
                 Resource:
                   Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
+  # Create API Gateway Authorizer
   RestApiAuthorizer:
     Type: AWS::ApiGateway::Authorizer
     Properties:
@@ -117,10 +98,11 @@ Resources:
         - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations'
         - LambdaArn:
             Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
-      AuthorizerResultTtlInSeconds: 300
-      Type: TOKEN
-      IdentitySource: 'method.request.header.Authorization'
+      AuthorizerResultTtlInSeconds: 1800
+      Type: REQUEST
+      IdentitySource: 'method.request.header.token'
       RestApiId: !Ref ApiGatewayApi
+  # Give API Gateway permission to invoke Token Validator Lambda function
   TokenValidatorFunctionApiGatewayInvoke:
     Type: AWS::Lambda::Permission
     Properties:
@@ -129,12 +111,15 @@ Resources:
         Fn::ImportValue: !Join [':', [!Ref 'LambdaStackName', 'TokenValidatorFunctionArn']]
       Principal: 'apigateway.amazonaws.com'
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/*/*"
+
+  # Create proxy resource
   ApiGatewayProxyResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref ApiGatewayApi
       ParentId: !GetAtt ApiGatewayApi.RootResourceId
       PathPart: '{proxy+}'
+  # Create ANY method for proxy resource
   ApiGatewayProxyAnyMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -148,15 +133,31 @@ Resources:
       Integration:
         IntegrationHttpMethod: ANY
         Type: HTTP_PROXY
-        ConnectionType: VPC_LINK
-        ConnectionId: !Sub '${VpcLink}'
         Uri: !Sub
-          - 'http://${NlbDns}/{proxy}'
-          - NlbDns:
-              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'NetworkLoadBalancerDNS']]
+          - 'http://${AlbDns}/{proxy}'
+          - AlbDns:
+              Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'LoadBalancerDNS']]
         TimeoutInMillis: 29000
         CacheKeyParameters:
           - 'method.request.path.proxy'
         RequestParameters:
           integration.request.path.proxy: 'method.request.path.proxy'
           integration.request.header.authuid: 'context.authorizer.principalId'
+
+  # Create deployment with token post method and proxy any method
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayTokenMethod
+      - ApiGatewayProxyAnyMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      Description: API Gateway Deployment
+  # Create stage
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: 'DEV'
+      Description: API Gateway DEV stage
+      RestApiId: !Ref ApiGatewayApi
+      DeploymentId: !Ref ApiGatewayDeployment

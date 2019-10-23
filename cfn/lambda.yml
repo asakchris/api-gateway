@@ -63,7 +63,6 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${TokenValidatorFunction}'
       RetentionInDays: 7
-
 Outputs:
   TokenGenFunction:
     Description: Token Gen Function Arn

@@ -63,22 +63,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaCloudWatchAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-                  - 'ec2:CreateNetworkInterface'
-                  - 'ec2:DeleteNetworkInterface'
-                  - 'ec2:DescribeNetworkInterfaces'
-                  - 'elasticloadbalancing:Describe*'
-                Effect: 'Allow'
-                Resource: '*'
-
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole'
 Outputs:
   ECSTaskExecutionRole:
     Description: The ARN of ECS Task Execution Role
