@@ -1,5 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: This stack creates all IAM roles required
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment Name (DEV/QA)
+    AllowedValues: ['DEV', 'QA']
+  Platform:
+    Type: String
+    Default: 'TEST-SERVICES'
+    Description: Platform Name
 Resources:
   # This is a role which is used by the ECS tasks themselves.
   ECSTaskExecutionRole:
@@ -35,7 +44,7 @@ Resources:
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ECS-TASK-ROLE
+      RoleName: !Sub '${Environment}-${Platform}-TOKEN-LAMBDA-ROLE-01'
       AssumeRolePolicyDocument:
         Statement:
         - Effect: 'Allow'
@@ -52,8 +61,8 @@ Resources:
               - 'ecs:ListTasks'
               - 'ecs:DescribeTasks'
             Resource: '*'
-
-  LambdaRole:
+  # Role for token generator and authorizer lambda
+  TokenLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: LAMBDA-ROLE
@@ -76,8 +85,8 @@ Outputs:
     Value: !GetAtt 'ECSTaskRole.Arn'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ECSTaskRoleArn' ] ]
-  LambdaRole:
-    Description: The ARN of Lambda Role
-    Value: !GetAtt 'LambdaRole.Arn'
+  TokenLambdaRole:
+    Description: The ARN of Token Lambda Role
+    Value: !GetAtt 'TokenLambdaRole.Arn'
     Export:
-      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LambdaRoleArn' ] ]
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenLambdaRoleArn' ] ]

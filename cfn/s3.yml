@@ -1,13 +1,42 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: This stack creates S3 bucket to store Lambda functions
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment Name (DEV/QA)
+    AllowedValues: ['DEV', 'QA']
+  Platform:
+    Type: String
+    Default: 'TEST-SERVICES'
+    Description: Platform Name
+Mappings:
+  EnvironmentMap:
+    DEV:
+      EnvNameLowercase: dev
+      PlatformLowercase: 'test-services'
+    QA:
+      EnvNameLowercase: qa
+      PlatformLowercase: 'test-services'
+    BETA:
+      EnvNameLowercase: beta
+      PlatformLowercase: 'test-services'
+    PROD:
+      EnvNameLowercase: prod
+      PlatformLowercase: 'test-services'
+    DR:
+      EnvNameLowercase: dr
+      PlatformLowercase: 'test-services'
 Resources:
-  LambdaBucket:
+  TokenLambdaBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: asakchris-api-gw-lambda
+      BucketName: !Sub
+        - '${EnvLower}-chris-web-${PlatformLower}-token-lambda-${AWS::Region}-01'
+        - EnvLower: !FindInMap [EnvironmentMap, !Ref 'Environment', EnvNameLowercase]
+          PlatformLower: !FindInMap [EnvironmentMap, !Ref 'Environment', PlatformLowercase]
 Outputs:
-  LambdaBucket:
-    Description: Name of Lambda Bucket
-    Value: !Ref 'LambdaBucket'
+  TokenLambdaBucket:
+    Description: Name of Token Lambda Bucket
+    Value: !Ref 'TokenLambdaBucket'
     Export:
-      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'LambdaBucket' ] ]
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenLambdaBucket' ] ]

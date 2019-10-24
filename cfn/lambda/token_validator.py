@@ -13,7 +13,7 @@ def lambda_handler(event, context):
         validate(event)
 
         # Get OAM token from cache
-        application_token = event['authorizationToken']
+        application_token = event['headers']['token']
         access_token = get_token_from_cache(application_token)
 
         # Call OAM to validate token
@@ -32,14 +32,15 @@ def lambda_handler(event, context):
         raise
 
 def validate(event):
-    if 'authorizationToken' in event:
-        application_token = event['authorizationToken']
-        if not application_token:
-            print('application_token: ', application_token)
-            raise TokenException('Token header is blank', 'Unauthorized')
+    if 'headers' in event:
+        if 'token' in event['headers']:
+            application_token = event['headers']['token']
+            if not application_token:
+                raise TokenException('Token header is blank', 'Unauthorized')
+        else:
+            raise TokenException('Token header is missing', 'Unauthorized')
     else:
-        print('Token header is missing')
-        raise TokenException('Token header is missing', 'Unauthorized')
+        raise TokenException('Request headers is missing', 'Unauthorized')
 
 def get_token_from_cache(application_token):
     ds_token_url = get_env_variable('CACHE_TOKEN_URL')

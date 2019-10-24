@@ -1,37 +1,46 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: This stack creates all Lambda functions
 Parameters:
+  Environment:
+    Type: String
+    Description: Environment Name (DEV/QA)
+    AllowedValues: ['DEV', 'QA']
+  Platform:
+    Type: String
+    Default: 'TEST-SERVICES'
+    Description: Platform Name
   RoleStackName:
     Type: String
     Description: Name of the stack used to create IAM roles required for ECS
   LoadBalancerStackName:
     Type: String
     Description: Name of the stack used to create Load balancer
-  TokenHost:
-    Type: String
-    Default: 'tt.execute-api.us-east-1.amazonaws.com'
-    Description: Token host
-  ClientSecret:
-    Type: String
-    Default: 'T0FVVEhfRVhUX0dXOlBhc3NediE/REB6Q1RhKllKP3pDVCZ1eQ=='
-    Description: Client Secret
+Mappings:
+  EnvironmentMap:
+    DEV:
+      TokenHost: 'tt.execute-api.us-east-1.amazonaws.com'
+      ClientSecret: 'T0FVVEhfRVhUX0dXOlBhc3NediE/REB6Q1RhKllKP3pDVCZ1eQ=='
+    QA:
+      TokenHost: 'tt.execute-api.us-east-1.amazonaws.com'
+      ClientSecret: 'T0FVVEhfRVhUX0dXOlBhc3NediE/REB6Q1RhKllKP3pDVCZ1eQ=='
 Resources:
+  # Lambda function to generate token
   TokenGenFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: LAMBDA-TOKEN-GEN
+      FunctionName: !Sub '${Environment}-${Platform}-TOKEN-GEN-LAMBDA-01'
       Description: Lambda function to create token
       Code: lambda/token_gen.py
       Handler: token_gen.lambda_handler
       Runtime: python3.6
       Role:
-        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'LambdaRoleArn']]
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'TokenLambdaRoleArn']]
       Environment:
         Variables:
           TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
-          TOKEN_HOST: !Ref TokenHost
-          CLIENT_SECRET: !Ref ClientSecret
+          TOKEN_HOST: !FindInMap [EnvironmentMap, !Ref 'Environment', TokenHost]
+          CLIENT_SECRET: !FindInMap [EnvironmentMap, !Ref 'Environment', ClientSecret]
           CACHE_TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
   TokenGenLogGroup:
@@ -39,23 +48,23 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${TokenGenFunction}'
       RetentionInDays: 7
-
+  # Lambda function to validate token
   TokenValidatorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: LAMBDA-TOKEN-VALIDATOR
+      FunctionName: !Sub '${Environment}-${Platform}-TOKEN-VALIDATOR-LAMBDA-02'
       Description: Lambda function to validate token
       Code: lambda/token_validator.py
       Handler: token_validator.lambda_handler
       Runtime: python3.6
       Role:
-        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'LambdaRoleArn']]
+        Fn::ImportValue: !Join [':', [!Ref 'RoleStackName', 'TokenLambdaRoleArn']]
       Environment:
         Variables:
           TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'TokenUrl']]
-          TOKEN_HOST: !Ref TokenHost
-          CLIENT_SECRET: !Ref ClientSecret
+          TOKEN_HOST: !FindInMap [EnvironmentMap, !Ref 'Environment', TokenHost]
+          CLIENT_SECRET: !FindInMap [EnvironmentMap, !Ref 'Environment', ClientSecret]
           CACHE_TOKEN_URL:
             Fn::ImportValue: !Join [':', [!Ref 'LoadBalancerStackName', 'CacheUrl']]
   TokenValidatorLogGroup:
@@ -63,6 +72,28 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${TokenValidatorFunction}'
       RetentionInDays: 7
+  # Role for API Gateway Authorizer to invoke authorizer lambda function
+  ApiGWAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Environment}-${Platform}-API-GW-AUTH-ROLE-02'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'lambda:invokeFunction'
+                Effect: 'Allow'
+                Resource: !GetAtt TokenValidatorFunction.Arn
 Outputs:
   TokenGenFunction:
     Description: Token Gen Function Arn
@@ -74,3 +105,8 @@ Outputs:
     Value: !GetAtt 'TokenValidatorFunction.Arn'
     Export:
       Name: !Join [ ':', [ !Ref 'AWS::StackName', 'TokenValidatorFunctionArn' ] ]
+  ApiGWAuthorizerRole:
+    Description: The ARN of API Gateway Authorizer role
+    Value: !GetAtt 'ApiGWAuthorizerRole.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ApiGWAuthorizerRoleArn' ] ]
