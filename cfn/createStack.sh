@@ -6,8 +6,8 @@ show_script_usage()
     echo -e "\n************************************************************************************************"
     echo -e "`date` Script error : Incorrect usage"
     echo -e "Script Usage:"
-    echo -e "\t ./executeCfn.sh <ENV> <ImageVersion>\n"
-    echo -e "Pass 2 arguments to execute Cloudformation template"
+    echo -e "\t ./createStack.sh <ENV> <ImageVersion>\n"
+    echo -e "Pass 2 arguments to create/update Cloudformation stack"
     echo -e "(1) Environment Name (DEV/QA/UAT/PROD/DR)"
     echo -e "(2) Docker Image Version"
     echo -e "************************************************************************************************"
@@ -83,7 +83,7 @@ deploy_cfn() {
     echo "Executing $1 command"
     eval $1
     local __return_code=$?
-    if [ $__return_code -ne 0 ]
+    if [[ $__return_code -ne 0 ]]
     then
         echo "Exiting due to error: $__return_code"
         exit $__return_code
@@ -96,7 +96,7 @@ get_lambda_s3_bucket() {
 }
 
 # Check number of arguments
-if [ $# -ne 2 ]
+if [[ $# -ne 2 ]]
 then
     show_script_usage
     exit
@@ -143,7 +143,7 @@ ecs_command="aws --region $aws_region cloudformation deploy --template-file ecs-
 deploy_cfn "${ecs_command}"
 
 # Execute ECS Service template
-get_parameter_value env/$app_environment/EcsParam.json
+get_parameter_value env/$app_environment/ServiceParam.json
 ecs_service_command="aws --region $aws_region cloudformation deploy --template-file service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${ecs_service_command}"
 
