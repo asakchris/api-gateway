@@ -1,0 +1,5 @@
+{
+    "Environment": "$app_environment",
+    "LoadBalancerStackName": "$stack_lb",
+    "RoleStackName": "$stack_role"
+}

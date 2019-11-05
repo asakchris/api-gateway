@@ -1,0 +1,5 @@
+{
+    "Environment": "$app_environment",
+    "LambdaStackName": "$stack_lambda",
+    "LoadBalancerStackName": "$stack_lb"
+}

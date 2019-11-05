@@ -1,0 +1,7 @@
+{
+    "PrivateSubnetList": "subnet-03759a6aea1cffc8e,subnet-0239bfced473e911c",
+    "SecurityGroupStackName": "$stack_sg",
+    "LoadBalancerStackName": "$stack_lb",
+    "EcsClusterStackName": "$stack_ecs_cluster",
+    "RoleStackName": "$stack_role"
+}

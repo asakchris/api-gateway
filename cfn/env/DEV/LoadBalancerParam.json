@@ -1,0 +1,5 @@
+{
+    "VpcId": "vpc-0f407bc8f5f182a88",
+    "PrivateSubnetList": "subnet-03759a6aea1cffc8e,subnet-0239bfced473e911c",
+    "SecurityGroupStackName": "$stack_sg"
+}

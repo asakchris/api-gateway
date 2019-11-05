@@ -1,0 +1,10 @@
+{
+    "SecurityGroupStack": "${app_environment}-${app_name}-SG",
+    "LoadBalancerStack": "${app_environment}-${app_name}-LB",
+    "RoleStack": "${app_environment}-${app_name}-ROLE",
+    "S3Stack": "${app_environment}-${app_name}-S3",
+    "LambdaStack": "${app_environment}-${app_name}-LAMBDA",
+    "EcsClusterStack": "${app_environment}-${app_name}-ECS",
+    "EcsServiceStack": "${app_environment}-${app_name}-SERVICE",
+    "ApiGwStack": "${app_environment}-${app_name}-API-GW"
+}
