@@ -107,22 +107,22 @@ setup_env $1 $2
 
 # Execute Security Group template
 get_parameter_value env/$app_environment/SecurityGroupParam.json
-sg_command="aws --region $aws_region cloudformation deploy --template-file security-group.yml --stack-name ${stack_sg} --parameter-overrides ${param_values}"
+sg_command="aws --region $aws_region cloudformation deploy --template-file security-group.yml --stack-name ${stack_sg} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${sg_command}"
 
 # Execute Load Balancer template
 get_parameter_value env/$app_environment/LoadBalancerParam.json
-lb_command="aws --region $aws_region cloudformation deploy --template-file load-balancer.yml --stack-name ${stack_lb} --parameter-overrides ${param_values}"
+lb_command="aws --region $aws_region cloudformation deploy --template-file load-balancer.yml --stack-name ${stack_lb} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${lb_command}"
 
 # Execute Role template
 get_parameter_value env/$app_environment/RoleParam.json
-role_command="aws --region $aws_region cloudformation deploy --template-file role.yml --stack-name ${stack_role} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides ${param_values}"
+role_command="aws --region $aws_region cloudformation deploy --template-file role.yml --stack-name ${stack_role} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${role_command}"
 
 # Execute S3 template
 get_parameter_value env/$app_environment/S3Param.json
-s3_command="aws --region $aws_region cloudformation deploy --template-file s3.yml --stack-name ${stack_s3} --parameter-overrides ${param_values}"
+s3_command="aws --region $aws_region cloudformation deploy --template-file s3.yml --stack-name ${stack_s3} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${s3_command}"
 
 # Upload Lambda code into S3 bucket
@@ -134,22 +134,22 @@ deploy_cfn "${lambda_deploy_command}"
 
 # Execute Lambda template
 get_parameter_value env/$app_environment/LambdaParam.json
-lambda_command="aws --region $aws_region cloudformation deploy --template-file lambda-final.yml --stack-name ${stack_lambda} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides ${param_values}"
+lambda_command="aws --region $aws_region cloudformation deploy --template-file lambda-final.yml --stack-name ${stack_lambda} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${lambda_command}"
 
 # Execute ECS Cluster template
 get_parameter_value env/$app_environment/EcsParam.json
-ecs_command="aws --region $aws_region cloudformation deploy --template-file ecs-cluster.yml --stack-name ${stack_ecs_cluster} --parameter-overrides ${param_values}"
+ecs_command="aws --region $aws_region cloudformation deploy --template-file ecs-cluster.yml --stack-name ${stack_ecs_cluster} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${ecs_command}"
 
 # Execute ECS Service template
 get_parameter_value env/$app_environment/EcsParam.json
-ecs_service_command="aws --region $aws_region cloudformation deploy --template-file service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values}"
+ecs_service_command="aws --region $aws_region cloudformation deploy --template-file service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${ecs_service_command}"
 
 # Execute API GW template
 get_parameter_value env/$app_environment/ApiGatewayParam.json
-api_gw_command="aws --region $aws_region cloudformation deploy --template-file api-gateway.yml --stack-name ${$stack_api_gw} --parameter-overrides ${param_values}"
+api_gw_command="aws --region $aws_region cloudformation deploy --template-file api-gateway.yml --stack-name ${stack_api_gw} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${api_gw_command}"
 
 echo Successfully created/updated stacks
