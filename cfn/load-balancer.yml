@@ -4,7 +4,7 @@ Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
     Description: The VPC in which Fargate tasks run
-  SubnetList:
+  PublicSubnetList:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Select at least two public subnets in given VPC to deploy ALB
   SecurityGroupStackName:

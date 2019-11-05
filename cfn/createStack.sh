@@ -77,18 +77,22 @@ get_parameter_value() {
 }
 
 # This function executes given CFN deploy command
-# It takes 2 arguments
+# It takes 1 argument
 # (1) AWS cloudformation deploy command
-# (2) Stack name
 deploy_cfn() {
     echo "Executing $1 command"
     eval $1
-    if [ $? -eq 0 ]
+    local __return_code=$?
+    if [ $__return_code -ne 0 ]
     then
-        echo "Successfully created/updated $2 stack"
-    else
-        echo "Error while creating/updating $2 stack"
+        echo "Exiting due to error: $__return_code"
+        exit $__return_code
     fi
+}
+
+get_lambda_s3_bucket() {
+    lambda_s3_bucket=`aws cloudformation describe-stacks --stack-name ${stack_s3} --query "Stacks[0].Outputs[?OutputKey=='TokenLambdaBucket'].OutputValue" --output text`
+    echo lambda_s3_bucket: $lambda_s3_bucket
 }
 
 # Check number of arguments
@@ -104,4 +108,48 @@ setup_env $1 $2
 # Execute Security Group template
 get_parameter_value env/$app_environment/SecurityGroupParam.json
 sg_command="aws --region $aws_region cloudformation deploy --template-file security-group.yml --stack-name ${stack_sg} --parameter-overrides ${param_values}"
-deploy_cfn "${sg_command}" $stack_sg
+deploy_cfn "${sg_command}"
+
+# Execute Load Balancer template
+get_parameter_value env/$app_environment/LoadBalancerParam.json
+lb_command="aws --region $aws_region cloudformation deploy --template-file load-balancer.yml --stack-name ${stack_lb} --parameter-overrides ${param_values}"
+deploy_cfn "${lb_command}"
+
+# Execute Role template
+get_parameter_value env/$app_environment/RoleParam.json
+role_command="aws --region $aws_region cloudformation deploy --template-file role.yml --stack-name ${stack_role} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides ${param_values}"
+deploy_cfn "${role_command}"
+
+# Execute S3 template
+get_parameter_value env/$app_environment/S3Param.json
+s3_command="aws --region $aws_region cloudformation deploy --template-file s3.yml --stack-name ${stack_s3} --parameter-overrides ${param_values}"
+deploy_cfn "${s3_command}"
+
+# Upload Lambda code into S3 bucket
+umask 002
+chmod 744 lambda/*.py
+get_lambda_s3_bucket
+lambda_deploy_command="aws cloudformation package --template-file lambda.yml --s3-bucket ${lambda_s3_bucket} --output-template-file lambda-final.yml"
+deploy_cfn "${lambda_deploy_command}"
+
+# Execute Lambda template
+get_parameter_value env/$app_environment/LambdaParam.json
+lambda_command="aws --region $aws_region cloudformation deploy --template-file lambda-final.yml --stack-name ${stack_lambda} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides ${param_values}"
+deploy_cfn "${lambda_command}"
+
+# Execute ECS Cluster template
+get_parameter_value env/$app_environment/EcsParam.json
+ecs_command="aws --region $aws_region cloudformation deploy --template-file ecs-cluster.yml --stack-name ${stack_ecs_cluster} --parameter-overrides ${param_values}"
+deploy_cfn "${ecs_command}"
+
+# Execute ECS Service template
+get_parameter_value env/$app_environment/EcsParam.json
+ecs_service_command="aws --region $aws_region cloudformation deploy --template-file service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values}"
+deploy_cfn "${ecs_service_command}"
+
+# Execute API GW template
+get_parameter_value env/$app_environment/ApiGatewayParam.json
+api_gw_command="aws --region $aws_region cloudformation deploy --template-file api-gateway.yml --stack-name ${$stack_api_gw} --parameter-overrides ${param_values}"
+deploy_cfn "${api_gw_command}"
+
+echo Successfully created/updated stacks

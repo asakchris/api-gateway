@@ -1,5 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: This stack create ECS Fargate Cluster
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment Name (DEV/QA)
+    AllowedValues: ['DEV', 'QA']
 Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
