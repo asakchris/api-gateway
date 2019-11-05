@@ -21,7 +21,7 @@ Resources:
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '60'
-      Subnets: !Ref SubnetList
+      Subnets: !Ref PublicSubnetList
       SecurityGroups:
         - Fn::ImportValue: !Join [':', [!Ref 'SecurityGroupStackName', 'LoadBalancerSecurityGroup']]
 
