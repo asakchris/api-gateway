@@ -90,9 +90,14 @@ deploy_cfn() {
     fi
 }
 
+# This function find S3 bucket created for Lambda
 get_lambda_s3_bucket() {
-    lambda_s3_bucket=`aws cloudformation describe-stacks --stack-name ${stack_s3} --query "Stacks[0].Outputs[?OutputKey=='TokenLambdaBucket'].OutputValue" --output text`
+    lambda_s3_bucket=$(aws cloudformation describe-stacks --stack-name ${stack_s3} --query "Stacks[0].Outputs[?OutputKey=='TokenLambdaBucket'].OutputValue" --output text)
     echo lambda_s3_bucket: $lambda_s3_bucket
+    if [[ "$lambda_s3_bucket" == "" ]]; then
+        echo Lambda S3 bucket does not exist
+        exit 1
+    fi
 }
 
 # Check number of arguments
