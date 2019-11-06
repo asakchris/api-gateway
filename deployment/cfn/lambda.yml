@@ -30,7 +30,7 @@ Resources:
     Properties:
       FunctionName: !Sub '${Environment}-${Platform}-TOKEN-GEN-LAMBDA-01'
       Description: Lambda function to create token
-      Code: lambda/token_gen.py
+      Code: deployment/cfn/lambda/token_gen.py
       Handler: token_gen.lambda_handler
       Runtime: python3.6
       Role:
@@ -54,7 +54,7 @@ Resources:
     Properties:
       FunctionName: !Sub '${Environment}-${Platform}-TOKEN-VALIDATOR-LAMBDA-02'
       Description: Lambda function to validate token
-      Code: lambda/token_validator.py
+      Code: deployment/cfn/lambda/token_validator.py
       Handler: token_validator.lambda_handler
       Runtime: python3.6
       Role:
