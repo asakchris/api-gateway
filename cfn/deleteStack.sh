@@ -12,6 +12,25 @@ show_script_usage()
     echo -e "************************************************************************************************"
 }
 
+# This function invokes readJson.py to get JSON property value
+# It takes 2 arguments
+# (1) JSON file path
+# (2) JSON property name
+python_json_property_value() {
+    python helper/readJson.py "$@"
+}
+
+# This function returns JSON property value
+# It takes 3 arguments
+# (1) JSON file path
+# (2) JSON property name
+# (3) Variable name in which value to be assigned
+get_json_property_value() {
+    local __result_var=$3
+    local param_value=`python_json_property_value $1 $2`
+    eval $__result_var=$param_value
+}
+
 # This function sets up all required variables
 setup_env() {
     app_name='GW'
