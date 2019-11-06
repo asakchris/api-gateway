@@ -117,3 +117,5 @@ delete_stack ${stack_lb}
 
 # Delete Security Group stack
 delete_stack ${stack_sg}
+
+echo Successfully deleted stacks
