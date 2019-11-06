@@ -17,7 +17,7 @@ show_script_usage()
 # (1) JSON file path
 # (2) JSON property name
 python_json_property_value() {
-    python helper/readJson.py "$@"
+    python $scripts_dir/helper/readJson.py "$@"
 }
 
 # This function returns JSON property value
@@ -38,12 +38,12 @@ setup_env() {
     echo app_environment: $app_environment, app_name: $app_name
 
     # Setup environment specific variables from <ENV>.json file
-    local __env_file=env/$app_environment/$app_environment.json
+    local __env_file=$cfn_dir/env/$app_environment/$app_environment.json
     get_json_property_value $__env_file region aws_region
     echo aws_region: $aws_region
 
     # Setup common variables from common.json file
-    local __common_file=env/common.json
+    local __common_file=$cfn_dir/env/common.json
     get_json_property_value $__common_file SecurityGroupStack stack_sg
     get_json_property_value $__common_file LoadBalancerStack stack_lb
     get_json_property_value $__common_file RoleStack stack_role
@@ -64,7 +64,7 @@ setup_env() {
 delete_stack() {
     echo Deleting $1 stack...
     aws cloudformation delete-stack --stack-name $1
-    echo "Waiting for $1 stack to be deleted, this may take a few minutes..."
+    echo "Waiting for $1 stack to be deleted, this may take few minutes..."
     aws cloudformation wait stack-delete-complete --stack-name $1
     local __return_code=$?
     echo Successfully deleted $1 stack: $__return_code
@@ -79,6 +79,14 @@ get_lambda_s3_bucket() {
         exit 1
     fi
 }
+
+# Check whether script is called from repository root
+scripts_dir='./deployment/scripts'
+cfn_dir='./deployment/cfn'
+if [[ "`dirname $0`" != "$scripts_dir" ]]; then
+    echo "This script must be called from repository root." >&2
+    exit 1
+fi
 
 # Check number of arguments
 if [[ $# -ne 1 ]]

@@ -18,7 +18,7 @@ show_script_usage()
 # (1) JSON file path
 # (2) JSON property name
 python_json_property_value() {
-    python helper/readJson.py "$@"
+    python $scripts_dir/helper/readJson.py "$@"
 }
 
 # This function returns JSON property value
@@ -40,12 +40,12 @@ setup_env() {
     echo app_environment: $app_environment, image_version: $image_version, app_name: $app_name
 
     # Setup environment specific variables from <ENV>.json file
-    local __env_file=env/$app_environment/$app_environment.json
+    local __env_file=$cfn_dir/env/$app_environment/$app_environment.json
     get_json_property_value $__env_file region aws_region
     echo aws_region: $aws_region
 
     # Setup common variables from common.json file
-    local __common_file=env/common.json
+    local __common_file=$cfn_dir/env/common.json
     get_json_property_value $__common_file SecurityGroupStack stack_sg
     get_json_property_value $__common_file LoadBalancerStack stack_lb
     get_json_property_value $__common_file RoleStack stack_role
@@ -64,7 +64,7 @@ setup_env() {
 # It takes 1 argument
 # (1) JSON file path
 python_json_properties() {
-    python helper/getParameters.py "$@"
+    python $scripts_dir/helper/getParameters.py "$@"
 }
 
 # This function returns JSON property value
@@ -100,6 +100,14 @@ get_lambda_s3_bucket() {
     fi
 }
 
+# Check whether script is called from repository root
+scripts_dir='./deployment/scripts'
+cfn_dir='./deployment/cfn'
+if [[ "`dirname $0`" != "$scripts_dir" ]]; then
+    echo "This script must be called from repository root." >&2
+    exit 1
+fi
+
 # Check number of arguments
 if [[ $# -ne 2 ]]
 then
@@ -111,50 +119,50 @@ fi
 setup_env $1 $2
 
 # Execute Security Group template
-get_parameter_value env/$app_environment/SecurityGroupParam.json
-sg_command="aws --region $aws_region cloudformation deploy --template-file security-group.yml --stack-name ${stack_sg} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/SecurityGroupParam.json
+sg_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/security-group.yml --stack-name ${stack_sg} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${sg_command}"
 
 # Execute Load Balancer template
-get_parameter_value env/$app_environment/LoadBalancerParam.json
-lb_command="aws --region $aws_region cloudformation deploy --template-file load-balancer.yml --stack-name ${stack_lb} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/LoadBalancerParam.json
+lb_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/load-balancer.yml --stack-name ${stack_lb} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${lb_command}"
 
 # Execute Role template
-get_parameter_value env/$app_environment/RoleParam.json
-role_command="aws --region $aws_region cloudformation deploy --template-file role.yml --stack-name ${stack_role} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/RoleParam.json
+role_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/role.yml --stack-name ${stack_role} --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${role_command}"
 
 # Execute S3 template
-get_parameter_value env/$app_environment/S3Param.json
-s3_command="aws --region $aws_region cloudformation deploy --template-file s3.yml --stack-name ${stack_s3} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/S3Param.json
+s3_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/s3.yml --stack-name ${stack_s3} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${s3_command}"
 
 # Upload Lambda code into S3 bucket
 umask 002
-chmod 744 lambda/*.py
+chmod 744 $cfn_dir/lambda/*.py
 get_lambda_s3_bucket
-lambda_deploy_command="aws cloudformation package --template-file lambda.yml --s3-bucket ${lambda_s3_bucket} --output-template-file lambda-final.yml"
+lambda_deploy_command="aws cloudformation package --template-file $cfn_dir/lambda.yml --s3-bucket ${lambda_s3_bucket} --output-template-file $cfn_dir/lambda-final.yml"
 deploy_cfn "${lambda_deploy_command}"
 
 # Execute Lambda template
-get_parameter_value env/$app_environment/LambdaParam.json
-lambda_command="aws --region $aws_region cloudformation deploy --template-file lambda-final.yml --stack-name ${stack_lambda} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/LambdaParam.json
+lambda_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/lambda-final.yml --stack-name ${stack_lambda} --capabilities CAPABILITY_NAMED_IAM --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${lambda_command}"
 
 # Execute ECS Cluster template
-get_parameter_value env/$app_environment/EcsParam.json
-ecs_command="aws --region $aws_region cloudformation deploy --template-file ecs-cluster.yml --stack-name ${stack_ecs_cluster} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/EcsParam.json
+ecs_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/ecs-cluster.yml --stack-name ${stack_ecs_cluster} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${ecs_command}"
 
 # Execute ECS Service template
-get_parameter_value env/$app_environment/ServiceParam.json
-ecs_service_command="aws --region $aws_region cloudformation deploy --template-file service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/ServiceParam.json
+ecs_service_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/service.yml --stack-name ${stack_ecs_service} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${ecs_service_command}"
 
 # Execute API GW template
-get_parameter_value env/$app_environment/ApiGatewayParam.json
-api_gw_command="aws --region $aws_region cloudformation deploy --template-file api-gateway.yml --stack-name ${stack_api_gw} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
+get_parameter_value $cfn_dir/env/$app_environment/ApiGatewayParam.json
+api_gw_command="aws --region $aws_region cloudformation deploy --template-file $cfn_dir/api-gateway.yml --stack-name ${stack_api_gw} --parameter-overrides ${param_values} --no-fail-on-empty-changeset"
 deploy_cfn "${api_gw_command}"
 
 echo Successfully created/updated stacks
