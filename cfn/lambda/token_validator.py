@@ -79,7 +79,7 @@ def validate_token(access_token):
     authz = 'Basic ' + client_secret
     request_headers = { 'Content-type': 'application/x-www-form-urlencoded', 'Authorization': authz, 'Host': token_host }
 
-    request_data = 'oracle_token_action=validate&grant_type=oracle-idm:/oauth/grant-type/resource-access-token/jwt&oracle_token_attrs_retrieval=exp prn exp firstname lastname spAppGroup isMemberOf iat oracle.oauth.client_origin_id&assertion=' + access_token
+    request_data = 'oracle_token_action=validate&grant_type=oracle-idm:/oauth/grant-type/resource-access-token/jwt&oracle_token_attrs_retrieval=exp prn exp firstname lastname appGroup isMemberOf iat oracle.oauth.client_origin_id&assertion=' + access_token
 
     try:
         response = requests.post(token_url, data = request_data, headers = request_headers)
